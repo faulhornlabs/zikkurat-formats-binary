@@ -1,5 +1,5 @@
 
--- | The @.wtns@ witness file format
+-- | Parsing the @.wtns@ witness binary file format
 
 {-# LANGUAGE StrictData, PackageImports #-}
 module Witness where
@@ -41,44 +41,47 @@ witnessArray wtns = readForeignArray id
   (_numberOfWitnessVars  wtns)
   (_witnessRawData       wtns)
 
-parseWitnessFile :: FilePath -> IO (Maybe Witness)
-parseWitnessFile fname = parseContainerFile fname `bindMb` kont where
+parseWitnessFile :: FilePath -> IO (Either Msg Witness)
+parseWitnessFile fname = parseContainerFile fname `bindEi` kont where
 
-  kont :: Container -> IO (Maybe Witness)
+  kont :: Container -> IO (Either Msg Witness)
   kont (Container globHdr sections) = case globHdr of
     GlobalHeader _ "wtns" 2 -> worker (sortSectionHeaders sections) 
-    _                       -> return Nothing
+    _                       -> return (Left "invalid global header (expecting `wtns` file version 2")
 
-  worker :: [SectionHeader] -> IO (Maybe Witness)
+  worker :: [SectionHeader] -> IO (Either Msg Witness)
   worker [ sect1@(SectionHeader 1 _ _)
          , sect2@(SectionHeader 2 _ _) ] = do
-                        h <- openBinaryFile fname ReadMode
-                        mb <- parseSect1 h sect1 `bindMb` parseSect2 h sect2
+                        h  <- openBinaryFile fname ReadMode
+                        ei <- parseSect1 h sect1 `bindEi` parseSect2 h sect2
                         hClose h
-                        return mb
-  worker _ = return Nothing
+                        return ei
+  worker _ = return (Left "expecting two sections with section ids 1,2")
 
-  parseSect1 :: Handle -> SectionHeader -> IO (Maybe (FieldConfig,Int))
+  parseSect1 :: Handle -> SectionHeader -> IO (Either Msg (FieldConfig,Int))
   parseSect1 h (SectionHeader 1 ofs siz) = do
     hSeek h AbsoluteSeek (fromIntegral ofs)
     fieldElemSiz <- readWord32asInt h
     if siz /= 8 + fromIntegral fieldElemSiz
-      then return Nothing
+      then return (Left "size of header sections does not match the expected value")
       else do
-        prime <- readInteger h fieldElemSiz
-        let fieldCfg = FieldConfig fieldElemSiz prime
-        nvars <- readWord32asInt h
-        return $ Just (fieldCfg, nvars)
+        if (fieldElemSiz < 4 || fieldElemSiz > 256)
+          then return (Left "field element size is out of the expected range")
+          else do
+            prime <- readInteger h fieldElemSiz
+            let fieldCfg = FieldConfig fieldElemSiz prime
+            nvars <- readWord32asInt h
+            return $ Right (fieldCfg, nvars)
 
-  parseSect2 :: Handle -> SectionHeader -> (FieldConfig,Int) -> IO (Maybe Witness)
+  parseSect2 :: Handle -> SectionHeader -> (FieldConfig,Int) -> IO (Either Msg Witness)
   parseSect2 h (SectionHeader 2 ofs siz) (fieldCfg, nvars) = do
     hSeek h AbsoluteSeek (fromIntegral ofs)
     if siz /= fromIntegral (_bytesPerFieldElement fieldCfg * nvars)
-      then return Nothing
+      then return (Left "size of witness section does not match the expected value")
       else do
         fptr <- mallocForeignPtrBytes (fromIntegral siz)
         withForeignPtr fptr $ \ptr -> hGetBuf h ptr (fromIntegral siz)
-        return $ Just $ Witness 
+        return $ Right $ Witness 
           { _fieldConfig          = fieldCfg
           , _numberOfWitnessVars  = nvars
           , _witnessRawData       = fptr

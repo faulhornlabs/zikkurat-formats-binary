@@ -19,6 +19,8 @@ import Data.ByteString.Lazy (ByteString) ; import qualified Data.ByteString.Lazy
 
 import "binary" Data.Binary.Get
 
+import Helpers
+
 --------------------------------------------------------------------------------
 
 data GlobalHeader = GlobalHeader
@@ -57,37 +59,37 @@ data Container = Container
 
 --------------------------------------------------------------------------------
 
-parseContainerFile :: FilePath -> IO (Maybe Container)
+parseContainerFile :: FilePath -> IO (Either Msg Container)
 parseContainerFile fname = 
   do
     h    <- openBinaryFile fname ReadMode 
     flen <- hFileSize h
-    mb   <- readContainer h flen
+    ei   <- readContainer h flen
     hClose h
-    return mb
+    return ei
 
   where
 
-    readContainer :: Handle -> Integer -> IO (Maybe Container)
+    readContainer :: Handle -> Integer -> IO (Either Msg Container)
     readContainer h flen 
-      | flen < 32  = return Nothing
+      | flen < 32  = return $ Left "file is too small"
       | otherwise  = do
           bytes <- L.hGet h 12
           let (magicWord,version,nsections) = flip runGet bytes ((,,) <$> getWord32le <*> getWord32le <*> getWord32le)
           let magicStr = magicWordToString magicWord
           let global = GlobalHeader magicWord magicStr version
           case all isAlphaNum magicStr of
-            False -> return Nothing  
+            False -> return $ Left "expecting an alphanumeric magic word"
             True  -> do
               mbSections <- worker (fromIntegral nsections)
               return (Container <$> pure global <*> mbSections)
 
       where
-        worker :: Int -> IO (Maybe [SectionHeader])
-        worker 0 = return (Just [])
+        worker :: Int -> IO (Either Msg [SectionHeader])
+        worker 0 = return (Right [])
         worker n = do
           pos <- hTell h
-          if flen - pos < 12 then return Nothing else do
+          if flen - pos < 12 then return (Left "unexpected end of file") else do
             bytes <- L.hGet h 12
             let (sectyp,seclen) = flip runGet bytes ((,) <$> getWord32le <*> getWord64le)
             let sect = SectionHeader 
