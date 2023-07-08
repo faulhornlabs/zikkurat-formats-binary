@@ -1,0 +1,53 @@
+Cabal-Version:        2.4
+Name:                 zikkurat-formats-binary
+Version:              0.1
+Synopsis:             Reading and parsing binary ZK file formats
+
+Description:          Reading and parsing binary file formats used in
+                      zero-knowledge proof tooling (ptau, r1cs, wtns).
+
+License:              MIT OR Apache-2.0
+License-files:        LICENSE-MIT
+                      LICENSE-APACHE-2.0
+
+Author:               Balazs Komuves
+Copyright:            (c) 2023 Faulhorn Labs
+Maintainer:           balazs.komuves (at) faulhornlabs (dot) com
+
+Stability:            Experimental
+Category:             Cryptography
+Tested-With:          GHC == 8.6.5, GHC == 9.0.1
+Build-Type:           Simple
+
+source-repository head
+  type:                git 
+  location:            https://github.com/faulhornlabs/zikkurat-formats-binary
+
+--------------------------------------------------------------------------------
+
+Library
+
+  Build-Depends:        base >= 4 && < 5, 
+                        bytestring >= 0.11,
+                        binary >= 0.8,
+                        array >= 0.5
+
+  Exposed-Modules:      ZK.Formats.Binary.Ptau
+                        ZK.Formats.Binary.R1CS
+                        ZK.Formats.Binary.Witness
+                        ZK.Formats.Binary.Container
+                        ZK.Formats.ForeignArray
+                        ZK.Formats.Primes
+
+  Other-modules:        ZK.Formats.Helpers
+                        ZK.Formats.Dummy
+
+  Default-Language:     Haskell2010
+  Default-Extensions:   CPP, BangPatterns
+
+  Hs-Source-Dirs:       src
+
+  ghc-options:          -fwarn-tabs -fno-warn-unused-matches -fno-warn-name-shadowing -fno-warn-unused-imports                        
+
+--------------------------------------------------------------------------------
+

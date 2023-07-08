@@ -1,6 +1,6 @@
 
 {-# LANGUAGE StrictData, PackageImports #-}
-module Helpers where
+module ZK.Formats.Helpers where
 
 --------------------------------------------------------------------------------
 
@@ -22,10 +22,6 @@ import "binary" Data.Binary.Get
 
 --------------------------------------------------------------------------------
 
-type Msg = String
-
---------------------------------------------------------------------------------
-
 bindMb :: IO (Maybe a) -> (a -> IO (Maybe b)) -> IO (Maybe b)
 bindMb action1 action2 = do
   mb1 <- action1
@@ -39,6 +35,13 @@ bindEi action1 action2 = do
   case ei1 of
     Left err -> return (Left err)
     Right x  -> action2 x
+
+bindEi_ :: IO (Either e a) -> (a -> IO b) -> IO (Either e b)
+bindEi_ action1 action2 = do
+  ei1 <- action1
+  case ei1 of
+    Left err -> return (Left err)
+    Right x  -> Right <$> action2 x
 
 --------------------------------------------------------------------------------
 

@@ -1,8 +1,12 @@
 
--- | Parsing the `.r1cs` binary file format
+-- | Parsing the @.r1cs@ binary file format 
+-- (describing arithmetic circuits as rank-1 constraint systems).
+--
+-- Note: custom gates are not yet implemented.
+--
 
 {-# LANGUAGE StrictData, PackageImports, GeneralizedNewtypeDeriving #-}
-module R1CS where
+module ZK.Formats.Binary.R1CS where
 
 --------------------------------------------------------------------------------
 
@@ -14,23 +18,22 @@ import Data.Array
 import Control.Monad
 import Control.Applicative
 
-import Foreign.ForeignPtr
-
 import System.IO
 
 import Data.ByteString.Lazy (ByteString) ; import qualified Data.ByteString.Lazy as L
 
 import "binary" Data.Binary.Get
 
-import Container
-import ForeignArray
-import Helpers
+import ZK.Formats.Binary.Container
+import ZK.Formats.ForeignArray ( ElementSize(..) , fromElementSize )
+import ZK.Formats.Primes
+import ZK.Formats.Helpers
 
 --------------------------------------------------------------------------------
 
 -- | Note: The witness should be organized in a flat array as:
 --
--- > [ 1 | public output | public input | private input | witness ]
+-- > [ 1 | public output | public input | private input | secret witness ]
 --
 -- with size @nWires@.
 --
@@ -54,7 +57,7 @@ data R1CS = R1CS
 
 dummyR1CS :: R1CS
 dummyR1CS = R1CS 
-  { _fieldConfig     = FieldConfig   0 0
+  { _fieldConfig     = FieldConfig   (ElementSize 0) 0
   , _witnessCfg      = WitnessConfig 0 0 0 0 0
   , _constraints     = []
   , _wireToLabelId   = WireToLabelId (listArray (0,-1) [])
@@ -138,13 +141,13 @@ parseR1CSFile fname = parseContainerFile fname `bindEi` kont where
     hSeek h AbsoluteSeek (fromIntegral ofs)
     fieldElemSiz <- readWord32asInt h
     if siz /= 32 + fromIntegral fieldElemSiz
-      then return (Left "size of header sections does not match the expected value")
+      then return (Left "size of header section does not match the expected value")
       else do
         if (fieldElemSiz < 4 || fieldElemSiz > 256)
           then return (Left "field element size is out of the expected range")
           else do
             prime <- readInteger h fieldElemSiz
-            let fieldCfg = FieldConfig fieldElemSiz prime
+            let fieldCfg = FieldConfig (ElementSize fieldElemSiz) prime
             nwires   <- readWord32asInt h
             npubout  <- readWord32asInt h
             npubin   <- readWord32asInt h
@@ -168,7 +171,7 @@ parseR1CSFile fname = parseContainerFile fname `bindEi` kont where
     siz <- getWord32asInt
     LinComb <$> (replicateM siz $ do
       wireidx <- getWord32asInt 
-      coeff   <- getInteger fldSize
+      coeff   <- getInteger (fromElementSize fldSize)
       return (WireIdx wireidx, coeff))
 
   getConstraint :: FieldConfig -> Get Constraint

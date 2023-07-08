@@ -1,6 +1,11 @@
 
+-- | Parsing the generic iden3 binary container format.
+--
+-- Cf. <https://github.com/iden3/binfileutils/>
+--
+
 {-# LANGUAGE StrictData, PackageImports #-}
-module Container where
+module ZK.Formats.Binary.Container where
 
 --------------------------------------------------------------------------------
 
@@ -19,7 +24,11 @@ import Data.ByteString.Lazy (ByteString) ; import qualified Data.ByteString.Lazy
 
 import "binary" Data.Binary.Get
 
-import Helpers
+import ZK.Formats.Helpers
+
+--------------------------------------------------------------------------------
+
+type Msg = String
 
 --------------------------------------------------------------------------------
 

@@ -2,7 +2,7 @@
 -- | Parsing the @.wtns@ witness binary file format
 
 {-# LANGUAGE StrictData, PackageImports #-}
-module Witness where
+module ZK.Formats.Binary.Witness where
 
 --------------------------------------------------------------------------------
 
@@ -22,24 +22,27 @@ import Data.ByteString.Lazy (ByteString) ; import qualified Data.ByteString.Lazy
 
 import "binary" Data.Binary.Get
 
-import Container
-import ForeignArray
-import Helpers
+import ZK.Formats.Binary.Container
+import ZK.Formats.ForeignArray
+import ZK.Formats.Primes
+import ZK.Formats.Helpers
 
 --------------------------------------------------------------------------------
 
 data Witness = Witness 
   { _fieldConfig          :: FieldConfig        -- ^ prime field configuration
   , _numberOfWitnessVars  :: Int                -- ^ number of witness variables (including the special variable "1")
-  , _witnessRawData       :: ForeignPtr Word8   -- ^ raw data of the witness variables
+  , _witnessData          :: ForeignArray       -- ^ raw data of the witness variables
   }
   deriving Show
 
 witnessArray :: Witness -> Array Int Integer
-witnessArray wtns = readForeignArray id
-  (_fieldConfig          wtns) 
-  (_numberOfWitnessVars  wtns)
-  (_witnessRawData       wtns)
+witnessArray wtns = readForeignArray id (_witnessData wtns)
+
+witnessList :: Witness -> [Integer]
+witnessList = elems . witnessArray
+
+--------------------------------------------------------------------------------
 
 parseWitnessFile :: FilePath -> IO (Either Msg Witness)
 parseWitnessFile fname = parseContainerFile fname `bindEi` kont where
@@ -63,20 +66,21 @@ parseWitnessFile fname = parseContainerFile fname `bindEi` kont where
     hSeek h AbsoluteSeek (fromIntegral ofs)
     fieldElemSiz <- readWord32asInt h
     if siz /= 8 + fromIntegral fieldElemSiz
-      then return (Left "size of header sections does not match the expected value")
+      then return (Left "size of header section does not match the expected value")
       else do
         if (fieldElemSiz < 4 || fieldElemSiz > 256)
           then return (Left "field element size is out of the expected range")
           else do
             prime <- readInteger h fieldElemSiz
-            let fieldCfg = FieldConfig fieldElemSiz prime
+            let fieldCfg = FieldConfig (ElementSize fieldElemSiz) prime
             nvars <- readWord32asInt h
             return $ Right (fieldCfg, nvars)
 
   parseSect2 :: Handle -> SectionHeader -> (FieldConfig,Int) -> IO (Either Msg Witness)
   parseSect2 h (SectionHeader 2 ofs siz) (fieldCfg, nvars) = do
+    let fldSize = _bytesPerFieldElement fieldCfg
     hSeek h AbsoluteSeek (fromIntegral ofs)
-    if siz /= fromIntegral (_bytesPerFieldElement fieldCfg * nvars)
+    if siz /= fromIntegral (fromElementSize fldSize * nvars)
       then return (Left "size of witness section does not match the expected value")
       else do
         fptr <- mallocForeignPtrBytes (fromIntegral siz)
@@ -84,7 +88,7 @@ parseWitnessFile fname = parseContainerFile fname `bindEi` kont where
         return $ Right $ Witness 
           { _fieldConfig          = fieldCfg
           , _numberOfWitnessVars  = nvars
-          , _witnessRawData       = fptr
+          , _witnessData          = ForeignArray nvars fldSize fptr
           }
 
 --------------------------------------------------------------------------------
