@@ -1,8 +1,31 @@
 
 -- | Parsing the @.wtns@ witness binary file format
 
+--------------------------------------------------------------------------------
+
+{-
+
+Note: the witness values are a flat array of size `nvars`, organized
+in the following order:
+
+    [ 1 | public output | public input | private input | secret witness ]
+
+so we have
+    nvars = 1 + pub + secret = 1 + npubout + npubin + nprivin + nsecret
+
+Field elements are encoded in the standard representation.
+
+-}
+
+--------------------------------------------------------------------------------
+
 {-# LANGUAGE StrictData, PackageImports #-}
-module ZK.Formats.Binary.Witness where
+module ZK.Formats.Binary.Witness 
+  ( module ZK.Formats.Types.Witness
+  , parseWtnsFile_
+  , parseWtnsFile
+  )
+  where
 
 --------------------------------------------------------------------------------
 
@@ -24,28 +47,20 @@ import "binary" Data.Binary.Get
 
 import ZK.Formats.Binary.Container
 import ZK.Formats.ForeignArray
+import ZK.Formats.Types
+import ZK.Formats.Types.Witness
 import ZK.Formats.Primes
 import ZK.Formats.Helpers
 
 --------------------------------------------------------------------------------
 
-data Witness = Witness 
-  { _fieldConfig          :: FieldConfig        -- ^ prime field configuration
-  , _numberOfWitnessVars  :: Int                -- ^ number of witness variables (including the special variable "1")
-  , _witnessData          :: ForeignArray       -- ^ raw data of the witness variables
-  }
-  deriving Show
+parseWtnsFile_ :: FilePath -> IO Witness
+parseWtnsFile_ fpath = parseWtnsFile fpath >>= \ei -> case ei of
+  Right wtns -> return wtns
+  Left  msg  -> error  msg
 
-witnessArray :: Witness -> Array Int Integer
-witnessArray wtns = readForeignArray id (_witnessData wtns)
-
-witnessList :: Witness -> [Integer]
-witnessList = elems . witnessArray
-
---------------------------------------------------------------------------------
-
-parseWitnessFile :: FilePath -> IO (Either Msg Witness)
-parseWitnessFile fname = parseContainerFile fname `bindEi` kont where
+parseWtnsFile :: FilePath -> IO (Either Msg Witness)
+parseWtnsFile fname = parseContainerFile fname `bindEi` kont where
 
   kont :: Container -> IO (Either Msg Witness)
   kont (Container globHdr sections) = case globHdr of
@@ -72,7 +87,7 @@ parseWitnessFile fname = parseContainerFile fname `bindEi` kont where
           then return (Left "field element size is out of the expected range")
           else do
             prime <- readInteger h fieldElemSiz
-            let fieldCfg = FieldConfig (ElementSize fieldElemSiz) prime
+            let fieldCfg = mkFieldConfig (ElementSize fieldElemSiz) prime
             nvars <- readWord32asInt h
             return $ Right (fieldCfg, nvars)
 
@@ -83,12 +98,11 @@ parseWitnessFile fname = parseContainerFile fname `bindEi` kont where
     if siz /= fromIntegral (fromElementSize fldSize * nvars)
       then return (Left "size of witness section does not match the expected value")
       else do
-        fptr <- mallocForeignPtrBytes (fromIntegral siz)
-        withForeignPtr fptr $ \ptr -> hGetBuf h ptr (fromIntegral siz)
+        farr <- hGetForeignArray h fldSize nvars
         return $ Right $ Witness 
-          { _fieldConfig          = fieldCfg
+          { _witnessFieldConfig   = fieldCfg
           , _numberOfWitnessVars  = nvars
-          , _witnessData          = ForeignArray nvars fldSize fptr
+          , _witnessData          = StdFrArray farr
           }
 
 --------------------------------------------------------------------------------

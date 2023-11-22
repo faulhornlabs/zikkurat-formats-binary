@@ -38,6 +38,14 @@ newtype ElementSize
 fromElementSize :: ElementSize -> Int
 fromElementSize (ElementSize k) = k
 
+doubleElementSize :: ElementSize -> ElementSize
+doubleElementSize (ElementSize k) = ElementSize (2*k)
+
+quadrupleElementSize :: ElementSize -> ElementSize
+quadrupleElementSize (ElementSize k) = ElementSize (4*k)
+
+--------------------------------------------------------------------------------
+
 data ForeignArray = ForeignArray 
   { _foreignArrayLen      :: Int                -- ^ length of the array (measured in elements)
   , _foreignArrayElemSize :: ElementSize        -- ^ size of an element in bytes
@@ -76,4 +84,17 @@ getRawForeignArray f (ElementSize elsiz) n fptr = do
     getIntegerLE :: Ptr Word8 -> IO Integer
     getIntegerLE ptr = toIntegerLE <$> peekArray elsiz ptr
 
+--------------------------------------------------------------------------------
+
+hGetForeignArray :: Handle -> ElementSize -> Int -> IO ForeignArray
+hGetForeignArray h elemSize@(ElementSize elsiz) nElems = do
+  let siz = elsiz * nElems
+  fptr <- mallocForeignPtrBytes siz
+  withForeignPtr fptr $ \ptr -> hGetBuf h ptr (fromIntegral siz)
+  return $ ForeignArray 
+    { _foreignArrayLen      = nElems
+    , _foreignArrayElemSize = elemSize
+    , _foreignArrayPtr      = fptr
+    }
+          
 --------------------------------------------------------------------------------

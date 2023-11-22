@@ -5,8 +5,67 @@
 -- Note: custom gates are not yet implemented.
 --
 
+--------------------------------------------------------------------------------
+
+{-
+
+file format
+===========
+ 
+standard iden3 binary container format.
+field elements are in standard representation
+
+sections:
+
+1: Header
+---------
+  n8r     : word32    = how many bytes are a field element in Fr
+  r       : n8r bytes = the size of the prime field Fr (the scalar field)
+  nWires  : word32    = number of wires (or witness variables)
+  nPubOut : word32    = number of public outputs
+  nPubIn  : word32    = number of public inputs
+  nPrivIn : word32    = number of private inputs
+  nLabels : word64    = number of labels (variable names in the circom source code)
+
+2: Constraints
+--------------
+  nConstr : word32    = number of constraints
+  then an array of constraints:
+    A : LinComb
+    B : LinComb
+    C : LinComb
+  meaning `A*B=C`, where LinComb looks like this:
+    nTerms : word32     = number of terms
+    <an array of terms>
+  where a term looks like this:
+    idx   : word32      = which witness variable
+    coeff : Fr          = the coefficient
+    
+3: Wire-to-label mapping
+------------------------
+  <an array of `nWires` many 64 bit words>
+
+4: Custom gates list
+--------------------
+  ...
+  ...
+
+5: Custom gates application
+---------------------------
+  ...
+  ...
+
+--------------------------------------------------------------------------------
+
+-}
+
 {-# LANGUAGE StrictData, PackageImports, GeneralizedNewtypeDeriving #-}
-module ZK.Formats.Binary.R1CS where
+module ZK.Formats.Binary.R1CS 
+  ( module ZK.Formats.Types.R1CS
+  , parseR1CSFile_
+  , parseR1CSFile
+  )
+  where
 
 --------------------------------------------------------------------------------
 
@@ -26,77 +85,28 @@ import "binary" Data.Binary.Get
 
 import ZK.Formats.Binary.Container
 import ZK.Formats.ForeignArray ( ElementSize(..) , fromElementSize )
+import ZK.Formats.Types.R1CS
+import ZK.Formats.Types.Etc
 import ZK.Formats.Primes
 import ZK.Formats.Helpers
 
 --------------------------------------------------------------------------------
 
--- | Note: The witness should be organized in a flat array as:
---
--- > [ 1 | public output | public input | private input | secret witness ]
---
--- with size @nWires@.
---
-data WitnessConfig = WitnessConfig
-  { _nWires  :: Int                -- ^ total number of wires (or witness variables), including the special \"variable\" constant 1.
-  , _nPubOut :: Int                -- ^ number of public outputs
-  , _nPubIn  :: Int                -- ^ number of public inputs
-  , _nPrvIn  :: Int                -- ^ number of private inputs
-  , _nLabels :: Int                -- ^ number of labels
-  }
-  deriving Show
-
-data R1CS = R1CS
-  { _fieldConfig     :: FieldConfig            -- ^ prime field configuration
-  , _witnessCfg      :: WitnessConfig          -- ^ witness configuration (public and private inputs)
-  , _constraints     :: [Constraint]           -- ^ the list of R1CS constraints
-  , _wireToLabelId   :: WireToLabelId          -- ^ mapping of wire indices to label ids
-  , _customGates     :: Maybe CustomGates      -- ^ custom gates 
-  }
-  deriving Show
-
 dummyR1CS :: R1CS
 dummyR1CS = R1CS 
-  { _fieldConfig     = FieldConfig   (ElementSize 0) 0
+  { _r1csFieldConfig = dummyFieldConfig
   , _witnessCfg      = WitnessConfig 0 0 0 0 0
   , _constraints     = []
   , _wireToLabelId   = WireToLabelId (listArray (0,-1) [])
   , _customGates     = Nothing
   }
 
--- | An R1CS constraints has the form @A * B = C@ where A,B,C are (affine) linear terms
-data Constraint = Constraint
-  { _constraintA :: LinComb
-  , _constraintB :: LinComb
-  , _constraintC :: LinComb
-  }
-  deriving Show
-
-newtype WireIdx 
-  = WireIdx Int
-  deriving (Eq,Ord,Show,Num,Ix)
-
--- | A linear term is a linear combination of witness wariables. Note: the special
--- witness variable with index zero normally denotes the constant 1 \"variable\"
-newtype LinComb 
-  = LinComb [(WireIdx,Integer)]
-  deriving Show
-
-newtype WireToLabelId 
-  = WireToLabelId (Array WireIdx Word64)
-  deriving Show
-
-data CustomGates = CustomGates
-  { _customGateList :: [CustomGateDef]
-  , _customGateApps :: [CustomGateApp]
-  }
-  deriving Show
-
--- | TODO
-type CustomGateDef  = ()
-type CustomGateApp  = ()
-
 --------------------------------------------------------------------------------
+
+parseR1CSFile_ :: FilePath -> IO R1CS
+parseR1CSFile_ fpath = parseR1CSFile fpath >>= \ei -> case ei of
+  Right r1cs -> return r1cs
+  Left  msg  -> error  msg
 
 parseR1CSFile :: FilePath -> IO (Either Msg R1CS)
 parseR1CSFile fname = parseContainerFile fname `bindEi` kont where
@@ -147,7 +157,7 @@ parseR1CSFile fname = parseContainerFile fname `bindEi` kont where
           then return (Left "field element size is out of the expected range")
           else do
             prime <- readInteger h fieldElemSiz
-            let fieldCfg = FieldConfig (ElementSize fieldElemSiz) prime
+            let fieldCfg = mkFieldConfig (ElementSize fieldElemSiz) prime
             nwires   <- readWord32asInt h
             npubout  <- readWord32asInt h
             npubin   <- readWord32asInt h
@@ -167,7 +177,8 @@ parseR1CSFile fname = parseContainerFile fname `bindEi` kont where
   -- constraint section
 
   getLinComb :: FieldConfig -> Get LinComb
-  getLinComb (FieldConfig fldSize _) = do
+  getLinComb fieldcfg = do
+    let fldSize = _bytesPerFieldElement fieldcfg
     siz <- getWord32asInt
     LinComb <$> (replicateM siz $ do
       wireidx <- getWord32asInt 
@@ -188,9 +199,9 @@ parseR1CSFile fname = parseContainerFile fname `bindEi` kont where
     return $ case runGetMaybe (replicateM nConstr (getConstraint fieldCfg)) bs of
       Nothing          -> Left "parsing of the constraint section fauled"
       Just constraints -> Right $ dummyR1CS
-        { _fieldConfig   = fieldCfg
-        , _witnessCfg    = witnessCfg
-        , _constraints   = constraints
+        { _r1csFieldConfig = fieldCfg
+        , _witnessCfg      = witnessCfg
+        , _constraints     = constraints
         }
 
   ----------------------------------------

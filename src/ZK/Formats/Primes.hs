@@ -6,19 +6,7 @@ module ZK.Formats.Primes where
 --------------------------------------------------------------------------------
 
 import ZK.Formats.ForeignArray ( ElementSize(..) )
-
---------------------------------------------------------------------------------
--- * Field configuration
-
--- | This is how the field prime is represented in the iden3 binary formats.
-data FieldConfig = FieldConfig 
-  { _bytesPerFieldElement :: !ElementSize    -- ^ how many bytes per field element
-  , _fieldPrime           :: !Integer        -- ^ the field prime
-  }
-  deriving (Eq,Show)
-
-recognizeFieldConfig :: FieldConfig -> Maybe Prime
-recognizeFieldConfig = recognizePrime . _fieldPrime
+import ZK.Formats.Types.Etc
 
 --------------------------------------------------------------------------------
 -- * Standard curves and primes
@@ -26,6 +14,7 @@ recognizeFieldConfig = recognizePrime . _fieldPrime
 -- | A standard elliptic curve
 data Curve
   = Bn128                -- ^ bn128 (aka. alt-bn128, BN256, BN254) curve
+  | Grumpkin    
   | Bls12_381            -- ^ BLS12-381 curve
   | Bls12_377            -- ^ BLS12-377 curve
   | Pallas               -- ^ Pallas curve (Pasta 2-cycle)
@@ -34,8 +23,9 @@ data Curve
 
 -- | A standard prime unrelated to an elliptic curve
 data OtherPrime
-  = Goldilocks           -- ^ @2^64 - 2^32 + 1@
-  | BabyBear             -- ^ @2^31 - 2^27 + 1@
+  = Goldilocks           -- ^ @p = 2^64 - 2^32 + 1@
+  | Mersenne31           -- ^ @p = 2^31 - 1@
+  | BabyBear             -- ^ @p = 2^31 - 2^27 + 1@
   deriving (Eq,Show)
 
 -- | A standard prime
@@ -44,6 +34,13 @@ data Prime
   | ScalarFieldOf Curve          -- ^ scalar field corresponding to a subgroup of an elliptic curve
   | OtherPrime    OtherPrime     -- ^ some other standard prime
   deriving (Eq,Show)
+
+--------------------------------------------------------------------------------
+
+recognizeFieldConfig :: FieldConfig -> Maybe Prime
+recognizeFieldConfig = recognizePrime . _fieldPrime
+
+--------------------------------------------------------------------------------
 
 recognizePrime :: Integer -> Maybe Prime
 recognizePrime p 
@@ -61,9 +58,23 @@ recognizePrime p
   | p == vesta_base_p        = Just $ BaseFieldOf   Vesta
 
   | p == goldilocks_p        = Just $ OtherPrime    Goldilocks
+  | p == mersenne31_p        = Just $ OtherPrime    Mersenne31
   | p == baby_bear_p         = Just $ OtherPrime    BabyBear
 
   | otherwise                = Nothing
+
+--------------------------------------------------------------------------------
+
+recognizeCurve :: Integer -> Integer -> Maybe Curve
+recognizeCurve p r = case (recognizePrime p, recognizePrime r) of
+  (Just fp, Just fr) -> case (fp, fr) of
+    (BaseFieldOf   Bn128      , ScalarFieldOf Bn128    ) -> Just Bn128    
+    (ScalarFieldOf Bn128      , BaseFieldOf   Bn128    ) -> Just Grumpkin
+    (BaseFieldOf   Bls12_381  , ScalarFieldOf Bls12_381) -> Just Bls12_381
+    (BaseFieldOf   Bls12_377  , ScalarFieldOf Bls12_377) -> Just Bls12_377
+    (BaseFieldOf   Pallas     , ScalarFieldOf Pallas   ) -> Just Pallas   
+    (ScalarFieldOf Pallas     , BaseFieldOf   Pallas   ) -> Just Vesta
+  _ -> Nothing
 
 --------------------------------------------------------------------------------
 -- * Some concrete primes
@@ -96,6 +107,7 @@ vesta_base_p  = 0x40000000000000000000000000000000224698fc0994a8dd8c46eb21000000
 -- other primes
 
 goldilocks_p = 2^64 - 2^32 + 1
+mersenne31_p = 2^31 - 1
 baby_bear_p  = 2^31 - 2^27 + 1
 
 --------------------------------------------------------------------------------

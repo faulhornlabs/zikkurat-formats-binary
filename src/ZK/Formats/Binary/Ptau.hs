@@ -6,7 +6,12 @@
 --
 
 {-# LANGUAGE PackageImports, GeneralizedNewtypeDeriving, DeriveFunctor #-}
-module ZK.Formats.Binary.Ptau where
+module ZK.Formats.Binary.Ptau 
+  ( module ZK.Formats.Types.Ptau
+  , parsePtauFile_
+  , parsePtauFile
+  )
+  where
 
 --------------------------------------------------------------------------------
 
@@ -28,67 +33,17 @@ import "binary" Data.Binary.Get
 
 import ZK.Formats.Binary.Container
 import ZK.Formats.ForeignArray
+import ZK.Formats.Types.Ptau
+import ZK.Formats.Types
 import ZK.Formats.Primes
 import ZK.Formats.Helpers
 
 --------------------------------------------------------------------------------
 
-data CeremonyConfig = CeremonyConfig
-  { _logSizeOfPtauFile :: !Int      -- ^ @n@ where @2^n@ is the characteristic size of the data contained in the file
-  , _logSizeOfCeremony :: !Int      -- ^ @n@ where @2^n@ is the original size of the ceremony (eg. 28 for the Hermez ceremony)
-  }
-  deriving Show
-
--- | Notes:
---
--- * G1 elements should consist of two bigints, @(x,y)@ coordinates of an elliptic curve point.
--- 
--- * G2 elements should usually consist of four bigints, @((x1,x2),(y1,y2))@, coordinates of an
---   elliptic curve point over a quadratic field extension (on a twisted curve)
---
--- * Field elements are encoded in Montgomery representation
---
-data PowersOfTau = PowersOfTau
-  { _fieldConfig     :: !FieldConfig           -- ^ prime field configuration
-  , _ceremonyCfg     :: !CeremonyConfig        -- ^ ceremony configuration 
-  , _tauG1           ::  G1Array               -- ^ @[         (tau^k) * g1 | k <- [0 ..2*N-2] ]@    
-  , _tauG2           ::  G2Array               -- ^ @[         (tau^k) * g2 | k <- [0 ..  N-1] ]@
-  , _alphaTauG1      ::  G1Array               -- ^ @[ alpha * (tau^k) * g1 | k <- [0 ..  N-1] ]@
-  , _betaTauG1       ::  G1Array               -- ^ @[ beta  * (tau^k) * g1 | k <- [0 ..  N-1] ]@
-  , _betaG2          ::  G2Array               -- ^ @[ beta * g2 ]@
-  }
-  deriving Show
-
--- | An array of curve points on the curve G1. Note: the ForeignArray is an array
--- of field elements, of size @2*N@.
-newtype G1Array 
-  = G1Array ForeignArray 
-  deriving Show
-
--- | An array of curve points on the curve G2. Note: the ForeignArray is an array
--- of prime field elements, of size @4*N@.
-newtype G2Array 
-  = G2Array ForeignArray 
-  deriving Show
-
---------------------------------------------------------------------------------
-
-data G1 a = G1 !a !a         deriving (Eq,Show,Functor)
-data G2 a = G2 !(a,a) !(a,a) deriving (Eq,Show,Functor)
-
-readG1Array :: G1Array -> [G1 Integer]
-readG1Array (G1Array farr) = toG1 $ readForeignArrayAsList id farr where
-  toG1 []         = []
-  toG1 (x:y:rest) = G1 x y : toG1 rest
-  toG1 _          = error "readG1Array: should not happen"
-
-readG2Array :: G2Array -> [G2 Integer]
-readG2Array (G2Array farr) = toG2 $ readForeignArrayAsList id farr where
-  toG2 []                 = []
-  toG2 (x1:x2:y1:y2:rest) = G2 (x1,x2) (y1,y2) : toG2 rest
-  toG2 _                  = error "readG2Array: should not happen"
-
---------------------------------------------------------------------------------
+parsePtauFile_ :: FilePath -> IO PowersOfTau
+parsePtauFile_ fpath = parsePtauFile fpath >>= \ei -> case ei of
+  Right ptau -> return ptau
+  Left  msg  -> error  msg
 
 parsePtauFile :: FilePath -> IO (Either Msg PowersOfTau)
 parsePtauFile fname = parseContainerFile fname `bindEi` kont where
@@ -133,7 +88,7 @@ parsePtauFile fname = parseContainerFile fname `bindEi` kont where
           then return (Left "field element size is out of the expected range")
           else do
             prime <- readInteger h fieldElemSiz
-            let fieldCfg = FieldConfig (ElementSize fieldElemSiz) prime
+            let fieldCfg = mkFieldConfig (ElementSize fieldElemSiz) prime
             sizeFile     <- readWord32asInt h
             sizeCeremony <- readWord32asInt h
             let ceremonyCfg = CeremonyConfig
@@ -142,13 +97,13 @@ parsePtauFile fname = parseContainerFile fname `bindEi` kont where
                   }
             let dummyForeignArray = error "missing ForeignArray (this should not happen)"
             return $ Right $ PowersOfTau
-              { _fieldConfig = fieldCfg
-              , _ceremonyCfg = ceremonyCfg
-              , _tauG1       = dummyForeignArray
-              , _tauG2       = dummyForeignArray
-              , _alphaTauG1  = dummyForeignArray
-              , _betaTauG1   = dummyForeignArray
-              , _betaG2      = dummyForeignArray
+              { _potFieldConfig  = fieldCfg
+              , _ceremonyCfg     = ceremonyCfg
+              , _tauG1           = dummyForeignArray
+              , _tauG2           = dummyForeignArray
+              , _alphaTauG1      = dummyForeignArray
+              , _betaTauG1       = dummyForeignArray
+              , _betaG2          = dummyForeignArray
               }
 
   ----------------------------------------
@@ -157,14 +112,15 @@ parsePtauFile fname = parseContainerFile fname `bindEi` kont where
   parseGenericSection :: Int -> Int -> Handle -> SectionHeader -> PowersOfTau -> IO (Either Msg ForeignArray)
   parseGenericSection nfldPerEntry expectedLen h (SectionHeader _ ofs siz) ptau = do
     hSeek h AbsoluteSeek (fromIntegral ofs)
-    let fldsiz = fromElementSize $ _bytesPerFieldElement $ _fieldConfig ptau
+    let elsize = _bytesPerFieldElement $ _potFieldConfig ptau
+    let fldsiz = fromElementSize elsize
     if nfldPerEntry * expectedLen * fldsiz /= fromIntegral siz
       then return $ Left $ "size of header section does not match the expected value " ++
              "(expecting " ++ show expectedLen ++ " group elements, each consisting of " ++ show nfldPerEntry ++ " field elements)"
       else do
         fptr <- mallocForeignPtrBytes (fromIntegral siz)
         withForeignPtr fptr $ \ptr -> hGetBuf h ptr (fromIntegral siz)
-        return $ Right $ ForeignArray (nfldPerEntry * expectedLen) (ElementSize fldsiz) fptr
+        return $ Right $ ForeignArray (expectedLen) (ElementSize $ nfldPerEntry * fldsiz) fptr
 
   ----------------------------------------
 

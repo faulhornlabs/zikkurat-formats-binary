@@ -4,7 +4,7 @@ Version:              0.1
 Synopsis:             Reading and parsing binary ZK file formats
 
 Description:          Reading and parsing binary file formats used in
-                      zero-knowledge proof tooling (ptau, r1cs, wtns).
+                      zero-knowledge proof tooling (r1cs, wtns, ptau, zkey).
 
 License:              MIT OR Apache-2.0
 License-files:        LICENSE-MIT
@@ -30,16 +30,25 @@ Library
   Build-Depends:        base >= 4 && < 5, 
                         bytestring >= 0.11,
                         binary >= 0.8,
-                        array >= 0.5
+                        array >= 0.5,
+                        containers >= 0.5
 
-  Exposed-Modules:      ZK.Formats.Binary.Ptau
-                        ZK.Formats.Binary.R1CS
+  Exposed-Modules:      ZK.Formats.Binary.R1CS
                         ZK.Formats.Binary.Witness
+                        ZK.Formats.Binary.ZKey
+                        ZK.Formats.Binary.Ptau
                         ZK.Formats.Binary.Container
+                        ZK.Formats.Types.R1CS
+                        ZK.Formats.Types.Witness
+                        ZK.Formats.Types.ZKey
+                        ZK.Formats.Types.Ptau
+                        ZK.Formats.Types.Etc
+                        ZK.Formats.Types
                         ZK.Formats.ForeignArray
                         ZK.Formats.Primes
 
   Other-modules:        ZK.Formats.Helpers
+                        ZK.Formats.Math
                         ZK.Formats.Dummy
 
   Default-Language:     Haskell2010
