@@ -33,6 +33,9 @@ data Groth16Header = Groth16Header
   }
   deriving (Eq,Show)
 
+_matrixDims :: Groth16Header -> (Int,Int)
+_matrixDims header = (_domainSize header, _nvars header)
+
 -- | Special points
 data SpecPoints = SpecPoints 
   { _alpha1  :: SingletonG1           -- ^ @[alpha]_1@
@@ -60,6 +63,17 @@ data ProverPoints = ProverPoints
 
 --------------------------------------------------------------------------------
 
+-- | A sparse matrix with (double-Montgomery-encoded) Fr elements
+data SparseMatrix = SparseMatrix
+  { _matDims  :: (Int,Int)
+  , _rowIdxs  :: IntArray
+  , _colIdxs  :: IntArray
+  , _coeffArr :: DoubleMontFrArray
+  }
+  deriving Show
+
+--------------------------------------------------------------------------------
+
 -- | Which matrix (from the R1CS equation @(Az)*(Bz) = Cz@)
 data MatrixSel
   = MatrixA
@@ -82,21 +96,27 @@ data VKey = VKey
   }
   deriving (Show)
 
-data ZKey = ZKey
+data ZKey coeffs = ZKey
   { _zkeyHeader  :: Groth16Header
   , _zkeySpec    :: SpecPoints
-  , _zkeyCoeffs  :: [ZKeyCoeff]
+  , _zkeyCoeffs  :: coeffs
   , _zkeyVPoints :: VerifierPoints
   , _zkeyPPoints :: ProverPoints
   }
   deriving (Show)
 
-zkeyCurve :: ZKey -> Curve
+-- | Remark: converting the `ZKeyCoeff` is very slow with large circuits.
+-- If performance is important, use @ZKey2@ instead
+type ZKey1 = ZKey [ZKeyCoeff]
+
+type ZKey2 = ZKey (SparseMatrix, SparseMatrix)
+
+zkeyCurve :: ZKey coeffs -> Curve
 zkeyCurve = _curve . _zkeyHeader
 
 --------------------------------------------------------------------------------
 
-extractVKey :: ZKey -> VKey
+extractVKey :: ZKey coeffs -> VKey
 extractVKey zkey = VKey
   { _vkeySpec    = _zkeySpec    zkey    
   , _vkeyVPoints = _zkeyVPoints zkey 

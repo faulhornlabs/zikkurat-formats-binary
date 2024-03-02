@@ -36,14 +36,27 @@ elementSizeToWordSize (ElementSize n) = WordSize ((n + 7) `div` 8)
 --------------------------------------------------------------------------------
 -- * Foreign arrays
 
+-- | An array of 64-bit integers
+newtype IntArray
+  = IntArray { fromIntArray :: ForeignArray }
+  deriving Show
+
 -- | An array of field elements in @F_r@, in standard representation
 newtype StdFrArray
   = StdFrArray { fromStdFrArray :: ForeignArray }
   deriving Show
 
--- | An array of field elements in @F_r@, in Motgomery representation representation
+-- | An array of field elements in @F_r@, in Montgomery representation representation
 newtype MontFrArray
   = MontFrArray { fromMontFrArray :: ForeignArray }
+  deriving Show
+
+-- | An array of field elements in @F_r@, in doubly Montgomery encoded representation.
+--
+-- This only exists because a bug in @snarkjs@... For example for a 254-bit
+-- prime field, it would be @(2^512 * x) `mod` p@
+newtype DoubleMontFrArray
+  = DoubleMontFrArray { fromDoubleMontFrArray :: ForeignArray }
   deriving Show
 
 -- | An array of curve points on the curve G1. Note: the ForeignArray is an array
