@@ -391,7 +391,7 @@ parseSect4 h (SectionHeader 4 ofs siz) oldzkey = do
     else do
       bs <- L.hGet h (fromIntegral siz - 4)
       return $ case runGetMaybe (replicateM ncoeffs (getCoeff fr)) bs of
-        Nothing          -> Left "parsing of the `coeffs` section (4) fauled"
+        Nothing          -> Left "parsing of the `coeffs` section (4) failed"
         Just coeffs      -> Right $ oldzkey { _zkeyCoeffs = coeffs } 
 
 ----------------------------------------

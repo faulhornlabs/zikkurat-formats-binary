@@ -47,13 +47,20 @@ sections:
 
 4: Custom gates list
 --------------------
-  ...
-  ...
+  nGates : word32     = number of custom gates
+  then an array of custom gate instantiations:
+    name  : cstring     = name of the custom template (with terminating zero byte)
+    nArgs : word32      = number of template arguments
+    args  : [Fr]        = list of template arguments (nArg field elements)
 
 5: Custom gates application
 ---------------------------
-  ...
-  ...
+  nApps : word32     = number of custom gate applications
+  then an array of applications:
+    idx    : word32     = index of the custom gate instantiation (in the above custom gate list)  
+    nWires : word32     = number of input/output wires of this gate
+    wires  : [word64]   = wire indices (64-bit words, same order as in the circom source code of the custom template)
+
 
 --------------------------------------------------------------------------------
 
@@ -79,7 +86,9 @@ import Control.Applicative
 
 import System.IO
 
-import Data.ByteString.Lazy (ByteString) ; import qualified Data.ByteString.Lazy as L
+import Data.ByteString.Lazy (ByteString) 
+import qualified Data.ByteString.Lazy       as L
+import qualified Data.ByteString.Lazy.Char8 as LC
 
 import "binary" Data.Binary.Get
 
@@ -137,8 +146,8 @@ parseR1CSFile fname = parseContainerFile fname `bindEi` kont where
                         ei <- parseSect1 h sect1 `bindEi` 
                               parseSect2 h sect2 `bindEi`
                               parseSect3 h sect3 `bindEi`
-                              parseSect4 h sect3 `bindEi`
-                              parseSect5 h sect3 
+                              parseSect4 h sect4 `bindEi`
+                              parseSect5 h sect5 
                         hClose h
                         return ei
   worker _ = return (Left "expecting 3 or 5 sections with section ids 1,2,3,[4,5]")
@@ -197,7 +206,7 @@ parseR1CSFile fname = parseContainerFile fname `bindEi` kont where
     hSeek h AbsoluteSeek (fromIntegral ofs)
     bs <- L.hGet h (fromIntegral siz)
     return $ case runGetMaybe (replicateM nConstr (getConstraint fieldCfg)) bs of
-      Nothing          -> Left "parsing of the constraint section fauled"
+      Nothing          -> Left "parsing of the constraint section failed"
       Just constraints -> Right $ dummyR1CS
         { _r1csFieldConfig = fieldCfg
         , _witnessCfg      = witnessCfg
@@ -216,21 +225,65 @@ parseR1CSFile fname = parseContainerFile fname `bindEi` kont where
         hSeek h AbsoluteSeek (fromIntegral ofs)
         bs <- L.hGet h (fromIntegral siz)
         return $ case runGetMaybe (replicateM nwires getWord64le) bs of
-          Nothing    -> Left "parsing of the `wire-to-label-id' section fauled"
+          Nothing    -> Left "parsing of the `wire-to-label-id' section failed"
           Just list  -> Right $ old 
             { _wireToLabelId = WireToLabelId (listArray (0,WireIdx (nwires-1)) list) }
 
   ----------------------------------------
   -- custom gates list section
 
+  getSection4 :: FieldConfig -> Get [CustomGateDef]
+  getSection4 fieldcfg = do
+    let fldSize = _bytesPerFieldElement fieldcfg
+    ngates <- getWord32asInt
+    forM [0..ngates-1] $ \_ -> do 
+      lbs_name <- getLazyByteStringNul
+      let name = LC.unpack lbs_name
+      nargs <- getWord32asInt
+      args  <- replicateM nargs (getInteger (fromElementSize fldSize))
+      return $ CustomGateDef
+        { _customGateName = name
+        , _customGateArgs = args
+        }
+
   parseSect4 :: Handle -> SectionHeader -> R1CS -> IO (Either Msg R1CS)
-  parseSect4 h (SectionHeader 4 ofs siz) old = return (Right old)
+  parseSect4 h (SectionHeader 4 ofs siz) old = do 
+    let fieldCfg = _r1csFieldConfig old
+    hSeek h AbsoluteSeek (fromIntegral ofs)
+    bs <- L.hGet h (fromIntegral siz)
+    return $ case runGetMaybe (getSection4 fieldCfg) bs of
+      Nothing    -> Left "parsing of the custom gate definition section failed"
+      Just list  -> let newGates = CustomGates
+                          { _customGateArray  = listArray (0,length list-1) list
+                          , _customGateApps   = []
+                          }
+                    in  Right $ old { _customGates = Just newGates }
 
   ----------------------------------------
   -- custom gate application section
 
+  getSection5 :: Get [CustomGateApp]
+  getSection5 = do
+    napps <- getWord32asInt
+    forM [0..napps-1] $ \_ -> do 
+      idx    <- getWord32asInt
+      nwires <- getWord32asInt
+      wires  <- replicateM nwires (WireIdx <$> fromIntegral <$> getWord64le)
+      return $ CustomGateApp
+        { _customGateIndex = idx
+        , _customGateWires = wires
+        }
+
   parseSect5 :: Handle -> SectionHeader -> R1CS -> IO (Either Msg R1CS)
-  parseSect5 h (SectionHeader 5 ofs siz) old = return (Right old)
+  parseSect5 h (SectionHeader 5 ofs siz) old = do
+    hSeek h AbsoluteSeek (fromIntegral ofs)
+    bs <- L.hGet h (fromIntegral siz)
+    return $ case runGetMaybe getSection5 bs of
+      Nothing    -> Left "parsing of the custom gate application section failed"
+      Just list  -> case _customGates old of
+        Nothing       -> Left "fatal error while parsing custom gates - this should never happen"
+        Just oldGates -> let newGates = oldGates { _customGateApps = list }
+                         in  Right $ old { _customGates = Just newGates }
 
 --------------------------------------------------------------------------------
 

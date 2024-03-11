@@ -62,14 +62,28 @@ newtype WireToLabelId
   = WireToLabelId (Array WireIdx Word64)
   deriving Show
 
+--------------------------------------------------------------------------------
+-- * Custom gates \/ templates 
+
+-- | Custom gates (or templates) in the circuit
 data CustomGates = CustomGates
-  { _customGateList :: [CustomGateDef]
-  , _customGateApps :: [CustomGateApp]
+  { _customGateArray :: Array Int CustomGateDef
+  , _customGateApps  :: [CustomGateApp]
   }
   deriving Show
 
--- | TODO
-type CustomGateDef  = ()
-type CustomGateApp  = ()
+-- | Declaration of custom gates
+data CustomGateDef = CustomGateDef 
+  { _customGateName :: String        -- ^ name of the custom template
+  , _customGateArgs :: [Integer]     -- ^ template arguments of this particular instantiation of the custom template
+  }
+  deriving Show
+
+-- | Application of custom gates
+data CustomGateApp = CustomGateApp
+  { _customGateIndex :: Int          -- ^ index of the custom template instantiation (in the above array)
+  , _customGateWires :: [WireIdx]    -- ^ wires connecting this gate to the circuit (same order as the in the circom source file)
+  }
+  deriving Show
 
 --------------------------------------------------------------------------------
