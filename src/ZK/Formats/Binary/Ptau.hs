@@ -37,6 +37,7 @@ import ZK.Formats.Types.Ptau
 import ZK.Formats.Types
 import ZK.Formats.Primes
 import ZK.Formats.Helpers
+import ZK.Formats.Dummy
 
 --------------------------------------------------------------------------------
 
@@ -95,15 +96,14 @@ parsePtauFile fname = parseContainerFile fname `bindEi` kont where
                   { _logSizeOfPtauFile = sizeFile
                   , _logSizeOfCeremony = sizeCeremony
                   }
-            let dummyForeignArray = error "missing ForeignArray (this should not happen)"
             return $ Right $ PowersOfTau
               { _potFieldConfig  = fieldCfg
               , _ceremonyCfg     = ceremonyCfg
-              , _tauG1           = dummyForeignArray
-              , _tauG2           = dummyForeignArray
-              , _alphaTauG1      = dummyForeignArray
-              , _betaTauG1       = dummyForeignArray
-              , _betaG2          = dummyForeignArray
+              , _tauG1           = G1Array dummyForeignArray
+              , _tauG2           = G2Array dummyForeignArray
+              , _alphaTauG1      = G1Array dummyForeignArray
+              , _betaTauG1       = G1Array dummyForeignArray
+              , _betaG2          = G2Array dummyForeignArray
               }
 
   ----------------------------------------
