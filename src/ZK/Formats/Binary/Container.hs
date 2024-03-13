@@ -20,9 +20,11 @@ import Control.Applicative
 
 import System.IO
 
-import Data.ByteString.Lazy (ByteString) ; import qualified Data.ByteString.Lazy as L
+import Data.ByteString.Lazy (ByteString) 
+import qualified Data.ByteString.Lazy as L
 
 import "binary" Data.Binary.Get
+import "binary" Data.Binary.Builder as Builder
 
 import ZK.Formats.Helpers
 
@@ -39,8 +41,21 @@ data GlobalHeader = GlobalHeader
   }
   deriving Show
 
+-- | usage: @mkGlobalHeader magicString version
+mkGlobalHeader :: String -> Int -> GlobalHeader
+mkGlobalHeader magicString version = GlobalHeader 
+  { _magicWord     = stringToMagicWord magicString
+  , _magicString   = magicString
+  , _globalVersion = fromIntegral version
+  }
+
 magicString :: GlobalHeader -> String
 magicString = magicWordToString . _magicWord
+
+stringToMagicWord :: String -> Word32
+stringToMagicWord str 
+  | length str /= 4  = error "stringToMagicWord: expecting a string of length 4"
+  | otherwise        = sum [ shiftL (fromIntegral (ord c) :: Word32) (k*8) | (k,c) <- zip [0..3] str ]
 
 magicWordToString :: Word32 -> String
 magicWordToString w = [ chr (fromIntegral (shiftR w (k*8) .&. 255)) | k <- [0..3] ]
@@ -67,6 +82,7 @@ data Container = Container
   deriving Show
 
 --------------------------------------------------------------------------------
+-- * Loading containers
 
 parseContainerFile :: FilePath -> IO (Either Msg Container)
 parseContainerFile fname = 
@@ -111,4 +127,33 @@ parseContainerFile fname =
             return ((sect:) <$> rest)
 
 --------------------------------------------------------------------------------
+-- * Writing containers
 
+data Container' = Container'
+  { _globalHeader' :: GlobalHeader
+  , _sections'     :: [Section']
+  }
+  deriving Show
+
+data Section' = Section'
+  { _sectionType' :: Word32           
+  , _sectionData' :: L.ByteString
+  }
+  deriving Show
+
+mkSection' :: Word32 -> Builder -> Section'
+mkSection' typ builder = Section' typ $ Builder.toLazyByteString builder
+
+writeContainerFile :: FilePath -> Container' -> IO ()
+writeContainerFile fname (Container' globHeader sections) = do
+  let nsections = length sections
+  let magicWord = _magicWord     globHeader
+  let version   = _globalVersion globHeader
+  h <- openBinaryFile fname WriteMode 
+  L.hPut h $ toLazyByteString $ (putWord32le magicWord <> putWord32le version <> putIntAsWord32 nsections)
+  forM_ sections $ \section@(Section' typ blob) -> do
+    L.hPut h $ toLazyByteString $ (putWord32le typ <> putInt64le (L.length blob))
+    L.hPut h blob
+  hClose h
+
+--------------------------------------------------------------------------------

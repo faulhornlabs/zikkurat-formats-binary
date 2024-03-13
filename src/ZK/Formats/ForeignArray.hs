@@ -19,6 +19,13 @@ import Data.Array
 import Control.Monad
 import Control.Applicative
 
+import qualified Data.ByteString           as B
+import qualified Data.ByteString.Internal  as B
+import qualified Data.ByteString.Lazy      as L
+
+-- import "binary" Data.Binary.Get
+import "binary" Data.Binary.Builder as Builder
+
 import Foreign.Ptr
 import Foreign.ForeignPtr
 import Foreign.Marshal
@@ -97,4 +104,15 @@ hGetForeignArray h elemSize@(ElementSize elsiz) nElems = do
     , _foreignArrayPtr      = fptr
     }
           
+--------------------------------------------------------------------------------
+
+foreignArrayToStrictByteString :: ForeignArray -> B.ByteString
+foreignArrayToStrictByteString (ForeignArray len elsize fptr) = B.fromForeignPtr fptr 0 (len * fromElementSize elsize) 
+
+foreignArrayToLazyByteString :: ForeignArray -> L.ByteString
+foreignArrayToLazyByteString = L.fromStrict . foreignArrayToStrictByteString
+
+putForeignArray :: ForeignArray -> Builder.Builder
+putForeignArray = Builder.fromByteString . foreignArrayToStrictByteString
+
 --------------------------------------------------------------------------------

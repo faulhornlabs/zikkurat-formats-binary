@@ -1,11 +1,16 @@
 
-{-# LANGUAGE StrictData, DeriveFunctor #-}
+{-# LANGUAGE StrictData, DeriveFunctor, PackageImports #-}
 module ZK.Formats.Types.Etc where
 
 --------------------------------------------------------------------------------
 
 import Data.Array
+import Data.Monoid
 
+import "binary" Data.Binary.Get
+import "binary" Data.Binary.Builder
+
+import ZK.Formats.Helpers
 import ZK.Formats.ForeignArray
 import ZK.Formats.Math as Math
 
@@ -25,6 +30,13 @@ mkFieldConfig elsize prime = FieldConfig elsize (elementSizeToWordSize elsize) p
 
 dummyFieldConfig :: FieldConfig 
 dummyFieldConfig = FieldConfig (ElementSize 0) (WordSize 0) 0
+
+putFieldConfig :: FieldConfig -> Builder
+putFieldConfig fieldcfg 
+  =  putWord32le (fromIntegral n)
+  <> putIntegerLE' n (_fieldPrime fieldcfg) 
+  where 
+    n = fromElementSize (_bytesPerFieldElement fieldcfg)
 
 newtype WordSize 
   = WordSize Int

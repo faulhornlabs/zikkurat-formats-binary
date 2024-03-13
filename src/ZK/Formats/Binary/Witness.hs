@@ -24,6 +24,8 @@ module ZK.Formats.Binary.Witness
   ( module ZK.Formats.Types.Witness
   , parseWtnsFile_
   , parseWtnsFile
+  , writeWtnsFile
+  , encodeWitness
   )
   where
 
@@ -44,6 +46,7 @@ import System.IO
 import Data.ByteString.Lazy (ByteString) ; import qualified Data.ByteString.Lazy as L
 
 import "binary" Data.Binary.Get
+import "binary" Data.Binary.Builder
 
 import ZK.Formats.Binary.Container
 import ZK.Formats.ForeignArray
@@ -104,5 +107,25 @@ parseWtnsFile fname = parseContainerFile fname `bindEi` kont where
           , _numberOfWitnessVars  = nvars
           , _witnessData          = StdFrArray farr
           }
+
+--------------------------------------------------------------------------------
+
+writeWtnsFile :: FilePath -> Witness -> IO ()
+writeWtnsFile fpath witness = writeContainerFile fpath (encodeWitness witness)
+
+encodeWitness :: Witness -> Container'
+encodeWitness witness = container where
+
+  container = Container'
+    { _globalHeader' = mkGlobalHeader "wtns" 2
+    , _sections'     = [section1,section2]
+    }
+
+  fieldcfg = _witnessFieldConfig witness
+  farray   = fromStdFrArray $ _witnessData witness
+  nvars    = _foreignArrayLen farray
+
+  section1 = mkSection' 1 (putFieldConfig fieldcfg <> putWord32le (fromIntegral nvars))
+  section2 = mkSection' 2 (putForeignArray $ fromStdFrArray $ _witnessData witness)
 
 --------------------------------------------------------------------------------

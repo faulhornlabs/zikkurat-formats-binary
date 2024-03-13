@@ -19,6 +19,7 @@ import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString      as B
 
 import "binary" Data.Binary.Get
+import "binary" Data.Binary.Builder as Builder
 
 --------------------------------------------------------------------------------
 
@@ -59,6 +60,13 @@ toIntegerLE = go where
   go []     = 0
   go (w:ws) = fromIntegral w + shiftL (go ws) 8
 
+fromIntegerLE' :: Int -> Integer -> [Word8]
+fromIntegerLE' n0 = go n0 where
+  go :: Int -> Integer -> [Word8]
+  go  0  0 = [] 
+  go  0  _ = error ("fromIntegerLE': integer too big to fit into " ++ show n0 ++ " bytes")
+  go !k !p = (fromInteger (p .&. 0xff)) : go (k-1) (shiftR p 8)
+  
 --------------------------------------------------------------------------------
 
 getWord32asInt :: Get Int
@@ -75,6 +83,17 @@ runGetMaybe action bs = case runGetOrFail action bs of
   Right (rem,ofs,x)  -> if L.null rem 
     then Just x
     else Nothing -- error $ "remaining stuff" ++ show ofs
+
+--------------------------------------------------------------------------------
+
+putIntAsWord32 :: Int -> Builder
+putIntAsWord32 = putWord32le . fromIntegral
+
+putIntAsWord64 :: Int -> Builder
+putIntAsWord64 = putWord64le . fromIntegral
+
+putIntegerLE' :: Int -> Integer -> Builder
+putIntegerLE' k p = mconcat $ map Builder.singleton (fromIntegerLE' k p)
 
 --------------------------------------------------------------------------------
 
