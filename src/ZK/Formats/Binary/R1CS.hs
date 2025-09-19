@@ -19,18 +19,18 @@ sections:
 
 1: Header
 ---------
-  n8r     : word32    = how many bytes are a field element in Fr
-  r       : n8r bytes = the size of the prime field Fr (the scalar field)
-  nWires  : word32    = number of wires (or witness variables)
-  nPubOut : word32    = number of public outputs
-  nPubIn  : word32    = number of public inputs
-  nPrivIn : word32    = number of private inputs
-  nLabels : word64    = number of labels (variable names in the circom source code)
+  n8r     : word32     = how many bytes are a field element in Fr
+  r       : n8r bytes  = the size of the prime field Fr (the scalar field)
+  nWires  : word32     = number of wires (or witness variables)
+  nPubOut : word32     = number of public outputs
+  nPubIn  : word32     = number of public inputs
+  nPrivIn : word32     = number of private inputs
+  nLabels : word64 (!) = number of labels (variable names in the circom source code)
+  nConstr : word32     = number of constraints
 
 2: Constraints
 --------------
-  nConstr : word32    = number of constraints
-  then an array of constraints:
+  an array of constraints:
     A : LinComb
     B : LinComb
     C : LinComb
@@ -66,11 +66,13 @@ sections:
 
 -}
 
-{-# LANGUAGE StrictData, PackageImports, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StrictData, PackageImports, GeneralizedNewtypeDeriving, RecordWildCards #-}
 module ZK.Formats.Binary.R1CS 
   ( module ZK.Formats.Types.R1CS
   , parseR1CSFile_
   , parseR1CSFile
+  , writeR1CSFile
+  , encodeR1CS
   )
   where
 
@@ -89,11 +91,12 @@ import System.IO
 import Data.ByteString.Lazy (ByteString) 
 import qualified Data.ByteString.Lazy       as L
 import qualified Data.ByteString.Lazy.Char8 as LC
+import qualified Data.Foldable              as F
 
 import "binary" Data.Binary.Get
+import "binary" Data.Binary.Builder as Builder
 
 import ZK.Formats.Binary.Container
-import ZK.Formats.ForeignArray ( ElementSize(..) , fromElementSize )
 import ZK.Formats.Types.R1CS
 import ZK.Formats.Types.Etc
 import ZK.Formats.Primes
@@ -287,3 +290,51 @@ parseR1CSFile fname = parseContainerFile fname `bindEi` kont where
 
 --------------------------------------------------------------------------------
 
+writeR1CSFile :: FilePath -> R1CS -> IO ()
+writeR1CSFile fpath r1cs = writeContainerFile fpath (encodeR1CS r1cs)
+
+encodeR1CS :: R1CS -> Container'
+encodeR1CS r1cs = container where
+
+  container = Container'
+    { _globalHeader' = mkGlobalHeader "r1cs" 1
+    , _sections'     = case mbcustom  of
+         Nothing -> [section2,section1,section3]
+         Just _  -> error "encodeR1CS: custom gates are not yet implemented"
+                    -- [section1,section2,section3,section4,section5]
+    }
+
+  fieldcfg    = _r1csFieldConfig r1cs
+  wtnscfg     = _witnessCfg      r1cs
+  constraints = _constraints     r1cs
+  wirelabels  = _wireToLabelId   r1cs
+  mbcustom    = _customGates     r1cs
+
+  fldsize  = _bytesPerFieldElement fieldcfg
+
+  section1 = mkSection' 1 (putFieldConfig fieldcfg <> putWitnessConfig wtnscfg <> putIntAsWord32 (length constraints))
+  section2 = mkSection' 2 (putListWith (putConstraint fldsize) constraints)
+  section3 = mkSection' 3 (putListWith putWord64le $ F.toList $ fromWireToLabelId wirelabels)
+
+putWitnessConfig :: WitnessConfig -> Builder
+putWitnessConfig (WitnessConfig{..})
+  =  putIntAsWord32 _nWires 
+  <> putIntAsWord32 _nPubOut
+  <> putIntAsWord32 _nPubIn 
+  <> putIntAsWord32 _nPrvIn 
+  <> putIntAsWord64 _nLabels
+
+putConstraint :: ElementSize -> Constraint -> Builder
+putConstraint fldsize (Constraint aa bb cc)
+  =  putLinComb fldsize aa 
+  <> putLinComb fldsize bb 
+  <> putLinComb fldsize cc
+
+putLinComb :: ElementSize -> LinComb -> Builder
+putLinComb fldsize (LinComb terms) = putIntAsWord32 (length terms) <> putListWith putTerm terms where
+  putTerm :: (WireIdx,Integer) -> Builder
+  putTerm (WireIdx idx, coeff) 
+    =  putIntAsWord32 idx
+    <> putIntegerLE fldsize coeff
+
+--------------------------------------------------------------------------------

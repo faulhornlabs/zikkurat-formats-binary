@@ -9,6 +9,7 @@ import Data.Word
 import Foreign.ForeignPtr
 import System.IO.Unsafe
 
+import ZK.Formats.Helpers ( ElementSize(..) )
 import ZK.Formats.ForeignArray
 
 --------------------------------------------------------------------------------

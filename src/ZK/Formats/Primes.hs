@@ -5,7 +5,7 @@ module ZK.Formats.Primes where
 
 --------------------------------------------------------------------------------
 
-import ZK.Formats.ForeignArray ( ElementSize(..) )
+import ZK.Formats.Helpers ( ElementSize(..) )
 import ZK.Formats.Types.Etc
 
 --------------------------------------------------------------------------------

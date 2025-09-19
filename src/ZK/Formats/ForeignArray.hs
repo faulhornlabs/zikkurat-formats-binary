@@ -37,22 +37,6 @@ import ZK.Formats.Helpers
 
 --------------------------------------------------------------------------------
 
--- | Size of an element in bytes
-newtype ElementSize 
-  = ElementSize Int
-  deriving (Eq,Show)
-
-fromElementSize :: ElementSize -> Int
-fromElementSize (ElementSize k) = k
-
-doubleElementSize :: ElementSize -> ElementSize
-doubleElementSize (ElementSize k) = ElementSize (2*k)
-
-quadrupleElementSize :: ElementSize -> ElementSize
-quadrupleElementSize (ElementSize k) = ElementSize (4*k)
-
---------------------------------------------------------------------------------
-
 data ForeignArray = ForeignArray 
   { _foreignArrayLen      :: Int                -- ^ length of the array (measured in elements)
   , _foreignArrayElemSize :: ElementSize        -- ^ size of an element in bytes

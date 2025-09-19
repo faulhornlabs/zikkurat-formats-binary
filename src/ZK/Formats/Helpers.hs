@@ -66,7 +66,23 @@ fromIntegerLE' n0 = go n0 where
   go  0  0 = [] 
   go  0  _ = error ("fromIntegerLE': integer too big to fit into " ++ show n0 ++ " bytes")
   go !k !p = (fromInteger (p .&. 0xff)) : go (k-1) (shiftR p 8)
-  
+
+--------------------------------------------------------------------------------
+
+-- | Size of an element in bytes
+newtype ElementSize 
+  = ElementSize Int
+  deriving (Eq,Show)
+
+fromElementSize :: ElementSize -> Int
+fromElementSize (ElementSize k) = k
+
+doubleElementSize :: ElementSize -> ElementSize
+doubleElementSize (ElementSize k) = ElementSize (2*k)
+
+quadrupleElementSize :: ElementSize -> ElementSize
+quadrupleElementSize (ElementSize k) = ElementSize (4*k)
+
 --------------------------------------------------------------------------------
 
 getWord32asInt :: Get Int
@@ -94,6 +110,12 @@ putIntAsWord64 = putWord64le . fromIntegral
 
 putIntegerLE' :: Int -> Integer -> Builder
 putIntegerLE' k p = mconcat $ map Builder.singleton (fromIntegerLE' k p)
+
+putIntegerLE :: ElementSize -> Integer -> Builder
+putIntegerLE (ElementSize k) p = putIntegerLE' k p
+
+putListWith :: (a -> Builder) -> ([a] -> Builder)
+putListWith f xs = mconcat (map f xs)
 
 --------------------------------------------------------------------------------
 

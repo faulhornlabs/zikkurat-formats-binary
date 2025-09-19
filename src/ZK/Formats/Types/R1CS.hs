@@ -62,6 +62,9 @@ newtype WireToLabelId
   = WireToLabelId (Array WireIdx Word64)
   deriving Show
 
+fromWireToLabelId :: WireToLabelId -> Array WireIdx Word64
+fromWireToLabelId (WireToLabelId arr) = arr
+
 --------------------------------------------------------------------------------
 -- * Custom gates \/ templates 
 
