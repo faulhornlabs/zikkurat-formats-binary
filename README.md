@@ -30,4 +30,6 @@ TODO
 ----
 
 - [ ] factor out the FlatArray types from `zikkurat-algebra`, and use that for array formats (?)
-- [ ] be able to export `.r1cs` and `.zkey`
+- [x] export the witness into `.wtns` 
+- [x] export constraints into `.r1cs` 
+- [ ] export the proving key into `.zkey`
