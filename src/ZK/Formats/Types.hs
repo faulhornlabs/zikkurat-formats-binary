@@ -5,6 +5,7 @@ module ZK.Formats.Types
   , module ZK.Formats.Types.Witness
   , module ZK.Formats.Types.ZKey
   , module ZK.Formats.Types.Ptau
+  , module ZK.Formats.Types.Ltau
   ) 
   where
 
@@ -15,5 +16,6 @@ import ZK.Formats.Types.R1CS
 import ZK.Formats.Types.Witness
 import ZK.Formats.Types.ZKey
 import ZK.Formats.Types.Ptau
+import ZK.Formats.Types.Ltau
 
 --------------------------------------------------------------------------------

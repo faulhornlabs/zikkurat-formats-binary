@@ -5,14 +5,17 @@
 -- the contributors, history and proofs are not.
 --
 
-{-# LANGUAGE StrictData #-}
+{-# LANGUAGE StrictData, PackageImports #-}
 module ZK.Formats.Types.Ptau where
 
 --------------------------------------------------------------------------------
 
+import "binary" Data.Binary.Builder 
+
 import ZK.Formats.ForeignArray
 import ZK.Formats.Types.Etc
 import ZK.Formats.Primes
+import ZK.Formats.Helpers
 
 --------------------------------------------------------------------------------
 
@@ -21,6 +24,9 @@ data CeremonyConfig = CeremonyConfig
   , _logSizeOfCeremony :: !Int      -- ^ @n@ where @2^n@ is the original size of the ceremony (eg. 28 for the Hermez ceremony)
   }
   deriving Show
+
+putCeremony :: CeremonyConfig -> Builder
+putCeremony (CeremonyConfig a b) = putIntAsWord32 a <> putIntAsWord32 b
 
 -- | Notes:
 --

@@ -5,6 +5,49 @@
 -- the contributors, history and proofs are not.
 --
 
+--------------------------------------------------------------------------------
+
+{-
+
+file format
+===========
+ 
+standard iden3 binary container format.
+Fp field elements are in Montgomery representation
+
+sections:
+
+1: Header
+---------
+  n8p         : word32    = how many bytes are a field element in Fp
+  p           : n8p bytes = the size of the prime field Fp (the base field)
+  fileSiz     : word32    = log2(N) where N is the size of setup in this file
+  ceremonySiz : word32    = log2(M) where M is the size of the original ceremony (which can be larger)
+
+2: tau*g1 points
+----------------
+  tauG1       : 2*N-1 points in G1 (coordinates in Montgomery representation)
+
+3: tau*g2 points
+----------------
+  tauG2       : N points in G2
+
+4: alpha*Tau*g1 points
+----------------------
+  alphaTauG1  : N points in G1
+
+5: beta*Tau*g1 points
+---------------------
+  betaTauG1   : N points in G1
+
+6: betaG2 point
+---------------
+  betaG2:     : a single point in G2
+
+-}
+
+--------------------------------------------------------------------------------
+
 {-# LANGUAGE PackageImports, GeneralizedNewtypeDeriving, DeriveFunctor #-}
 module ZK.Formats.Binary.Ptau 
   ( module ZK.Formats.Types.Ptau
@@ -110,12 +153,12 @@ parsePtauFile fname = parseContainerFile fname `bindEi` kont where
   -- data sections
 
   parseGenericSection :: Int -> Int -> Handle -> SectionHeader -> PowersOfTau -> IO (Either Msg ForeignArray)
-  parseGenericSection nfldPerEntry expectedLen h (SectionHeader _ ofs siz) ptau = do
+  parseGenericSection nfldPerEntry expectedLen h (SectionHeader sectIdx ofs siz) ptau = do
     hSeek h AbsoluteSeek (fromIntegral ofs)
     let elsize = _bytesPerFieldElement $ _potFieldConfig ptau
     let fldsiz = fromElementSize elsize
     if nfldPerEntry * expectedLen * fldsiz /= fromIntegral siz
-      then return $ Left $ "size of header section does not match the expected value " ++
+      then return $ Left $ "size of section " ++ show sectIdx ++ " does not match the expected value " ++
              "(expecting " ++ show expectedLen ++ " group elements, each consisting of " ++ show nfldPerEntry ++ " field elements)"
       else do
         fptr <- mallocForeignPtrBytes (fromIntegral siz)

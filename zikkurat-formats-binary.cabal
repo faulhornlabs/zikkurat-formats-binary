@@ -37,11 +37,13 @@ Library
                         ZK.Formats.Binary.Witness
                         ZK.Formats.Binary.ZKey
                         ZK.Formats.Binary.Ptau
+                        ZK.Formats.Binary.Ltau
                         ZK.Formats.Binary.Container
                         ZK.Formats.Types.R1CS
                         ZK.Formats.Types.Witness
                         ZK.Formats.Types.ZKey
                         ZK.Formats.Types.Ptau
+                        ZK.Formats.Types.Ltau
                         ZK.Formats.Types.Etc
                         ZK.Formats.Types
                         ZK.Formats.ForeignArray

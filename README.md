@@ -8,7 +8,7 @@ Parsing (and later maybe also writing) commonly used binary ZK file formats:
 - `.r1cs` files, describing R1CS circuits used by `circom`, `snarkjs` and others
 - `.wtns` files, used by `circom` and `snarkjs` to encode the witness
 - `.zkey` files, the prover key used by `snarkjs` or `rapidsnark`
-- ~~`.sym` files used by `circom` and `snarks` to describe mapping of names to witness indices~~
+- `.ltau` files, our version of `.ptau` containing the Lagrange basis form of a KZG setup
 
 Note: the JSON- and text-based formats are in a separate library, to avoid the unnecessary
 `aeson` dependency hell. 
@@ -23,5 +23,11 @@ The actual content and meaning of the sections is format-dependent.
 
 The `.r1cs` format is specified here: https://github.com/iden3/r1csfile/blob/master/doc/r1cs_bin_format.md
 
-The `.zkey` and `.r1cs` formats are also documented in the relevant source files
-in this repo (TODO: add `.ptau` and `.wtns`).
+The particular file formats are also documented in the relevant source files in this repo.
+
+
+TODO
+----
+
+- [ ] factor out the FlatArray types from `zikkurat-algebra`, and use that for array formats (?)
+- [ ] be able to export `.r1cs` and `.zkey`

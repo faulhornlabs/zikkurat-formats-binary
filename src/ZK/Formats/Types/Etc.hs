@@ -85,6 +85,12 @@ newtype G2Array
   = G2Array { fromG2Array :: ForeignArray }
   deriving Show
 
+putG1Array :: G1Array -> Builder
+putG1Array = putForeignArray . fromG1Array
+
+putG2Array :: G2Array -> Builder
+putG2Array = putForeignArray . fromG2Array
+
 --------------------------------------------------------------------------------
 
 -- | A single G1 element
@@ -96,6 +102,12 @@ newtype SingletonG1
 newtype SingletonG2
   = SingletonG2 { fromSingletonG2 :: G2Array }
   deriving Show
+
+putSingletonG1 :: SingletonG1 -> Builder
+putSingletonG1 = putG1Array . fromSingletonG1
+
+putSingletonG2 :: SingletonG2 -> Builder
+putSingletonG2 = putG2Array . fromSingletonG2
 
 --------------------------------------------------------------------------------
 

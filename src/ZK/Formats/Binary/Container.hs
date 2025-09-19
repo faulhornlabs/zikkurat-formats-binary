@@ -60,6 +60,8 @@ stringToMagicWord str
 magicWordToString :: Word32 -> String
 magicWordToString w = [ chr (fromIntegral (shiftR w (k*8) .&. 255)) | k <- [0..3] ]
 
+--------------------------------------------------------------------------------
+
 data SectionHeader = SectionHeader
   { _sectionType :: Word32    -- ^ section id
   , _dataOffset  :: Word64    -- ^ offset of the section data in the file

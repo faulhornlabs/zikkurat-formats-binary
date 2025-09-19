@@ -1,5 +1,5 @@
 
--- | Parsing the @.wtns@ witness binary file format
+-- | Parsing (and exporting) the @.wtns@ witness binary file format
 
 --------------------------------------------------------------------------------
 
@@ -14,6 +14,25 @@ so we have
     nvars = 1 + pub + secret = 1 + npubout + npubin + nprivin + nsecret
 
 Field elements are encoded in the standard representation.
+
+
+file format
+===========
+ 
+standard iden3 binary container format.
+field elements are in standard representation
+
+sections:
+
+1: Header
+---------
+  n8r     : word32    = how many bytes are a field element in Fr
+  r       : n8r bytes = the size of the prime field Fr (the scalar field)
+  nVars   : word32    = number of witness variables
+
+2: Witness
+----------
+  an array of `nVars` field elements in Fr
 
 -}
 
